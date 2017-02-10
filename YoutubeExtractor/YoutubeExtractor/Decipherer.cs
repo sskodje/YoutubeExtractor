@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -7,10 +8,25 @@ namespace YoutubeExtractor
 {
     internal static class Decipherer
     {
+        static Dictionary<string, string> _Ciphers = new Dictionary<string, string>();
+        static string GetJs(string cipherVersion)
+        {
+            string jsUrl = string.Format("http://s.ytimg.com/yts/jsbin/player-{0}.js", cipherVersion);
+
+            lock (_Ciphers)
+            {
+                if (_Ciphers.ContainsKey(cipherVersion))
+                    return _Ciphers[cipherVersion];
+                string js = HttpHelper.DownloadString(jsUrl);
+                _Ciphers.Add(cipherVersion, js);
+                return js;
+            }
+        }
+
         public static string DecipherWithVersion(string cipher, string cipherVersion)
         {
             string jsUrl = string.Format("http://s.ytimg.com/yts/jsbin/player-{0}.js", cipherVersion);
-            string js = HttpHelper.DownloadString(jsUrl);
+            string js = GetJs(cipherVersion);// HttpHelper.DownloadString(jsUrl);
 
             //Find "C" in this: var A = B.sig||C (B.s)
             string functNamePattern = @"\""signature"",\s?([a-zA-Z0-9\$]+)\("; //Regex Formed To Find Word or DollarSign

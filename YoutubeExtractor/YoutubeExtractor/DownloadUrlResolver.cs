@@ -48,7 +48,11 @@ namespace YoutubeExtractor
                 videoInfo.RequiresDecryption = false;
             }
         }
-
+        public static IEnumerable<VideoInfo> GetDownloadUrlsFromID(string youtubeID, bool decryptSignature = true)
+        {
+            string url = string.Format("http://www.youtube.com/watch?v={0}", youtubeID);
+            return GetDownloadUrls(url, decryptSignature);
+        }
         /// <summary>
         /// Gets a list of <see cref="VideoInfo" />s for the specified URL.
         /// </summary>
@@ -122,7 +126,11 @@ namespace YoutubeExtractor
         }
 
 #if PORTABLE
-
+        public static System.Threading.Tasks.Task<IEnumerable<VideoInfo>> GetDownloadUrlsFromIDAsync(string youtubeID, bool decryptSignature = true)
+        {
+            string url = string.Format("http://www.youtube.com/watch?v={0}", youtubeID);
+            return GetDownloadUrlsAsync(url, decryptSignature);
+        }
         public static System.Threading.Tasks.Task<IEnumerable<VideoInfo>> GetDownloadUrlsAsync(string videoUrl, bool decryptSignature = true)
         {
             return System.Threading.Tasks.Task.Run(() => GetDownloadUrls(videoUrl, decryptSignature));

@@ -5,6 +5,10 @@ using System.Net;
 using System.Text;
 using System.Text.RegularExpressions;
 
+#if PORTABLE
+using System.Net.Http;
+#endif
+
 namespace YoutubeExtractor
 {
     internal static class HttpHelper
@@ -12,15 +16,12 @@ namespace YoutubeExtractor
         public static string DownloadString(string url)
         {
 #if PORTABLE
-            var request = WebRequest.Create(url);
-            request.Method = "GET";
-
-            System.Threading.Tasks.Task<WebResponse> task = System.Threading.Tasks.Task.Factory.FromAsync(
-                request.BeginGetResponse,
-                asyncResult => request.EndGetResponse(asyncResult),
-                null);
-
-            return task.ContinueWith(t => ReadStreamFromResponse(t.Result)).Result;
+            HttpClientHandler handler = new HttpClientHandler();
+            handler.ClientCertificateOptions = ClientCertificateOption.Automatic;
+            HttpClient client = new HttpClient(handler);
+            client.DefaultRequestHeaders.Add("User-Agent", "Mozilla/4.0");
+            HttpResponseMessage response = client.GetAsync(url, HttpCompletionOption.ResponseContentRead).Result;
+            return response.Content.ReadAsStringAsync().Result;
 #else
             using (var client = new WebClient())
             {
