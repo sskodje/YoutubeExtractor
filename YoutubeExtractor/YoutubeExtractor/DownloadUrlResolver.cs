@@ -79,8 +79,8 @@ namespace YoutubeExtractor
         {
             if (videoUrl == null)
                 throw new ArgumentNullException("videoUrl");
-
-            bool isYoutubeUrl = TryNormalizeYoutubeUrl(videoUrl, out videoUrl);
+            string videoID;
+            bool isYoutubeUrl = TryNormalizeYoutubeUrl(videoUrl, out videoUrl,out videoID);
 
             if (!isYoutubeUrl)
             {
@@ -92,13 +92,16 @@ namespace YoutubeExtractor
                 var json = LoadJson(videoUrl);
 
                 string videoTitle = GetVideoTitle(json);
+                string sts = json["sts"].Value<string>();
 
-                IEnumerable<ExtractionInfo> downloadUrls = ExtractDownloadUrls(json);
+                Dictionary<string,string> videoInfo = GetVideoInfo(videoID, sts);
+
+                IEnumerable <ExtractionInfo> downloadUrls = ExtractDownloadUrls(videoInfo);
 
                 IEnumerable<VideoInfo> infos = GetVideoInfos(downloadUrls, videoTitle).ToList();
 
-                string htmlPlayerVersion = GetHtml5PlayerVersion(json);
 
+                string htmlPlayerVersion = GetHtml5PlayerVersion(json);
                 foreach (VideoInfo info in infos)
                 {
                     info.HtmlPlayerVersion = htmlPlayerVersion;
@@ -138,6 +141,39 @@ namespace YoutubeExtractor
 
 #endif
 
+
+        private static Dictionary<string, string> GetVideoInfo(string videoID, string sts)
+        {
+            string url = String.Format("https://www.youtube.com/get_video_info?video_id={0}&el={1}&sts={2}&hl=en", videoID, "embedded", sts);
+            string extractedJson = HttpHelper.DownloadString(url);
+            return SplitQuery(extractedJson);
+        }
+
+        private static Dictionary<string, string> SplitQuery(string query)
+        {
+            var dic = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var rawParams = query.Split('&');
+            foreach (var rawParam in rawParams)
+            {
+                var param = WebUtility.UrlDecode(rawParam);
+
+                // Look for the equals sign
+                var equalsPos = param.IndexOf('=');
+                if (equalsPos <= 0)
+                    continue;
+
+                // Get the key and value
+                var key = param.Substring(0, equalsPos);
+                var value = equalsPos < param.Length
+                    ? param.Substring(equalsPos + 1)
+                    : string.Empty;
+
+                // Add to dictionary
+                dic[key] = value;
+            }
+
+            return dic;
+        }
         /// <summary>
         /// Normalizes the given YouTube URL to the format http://youtube.com/watch?v={youtube-id}
         /// and returns whether the normalization was successful or not.
@@ -147,40 +183,97 @@ namespace YoutubeExtractor
         /// <returns>
         /// <c>true</c>, if the normalization was successful; <c>false</c>, if the URL is invalid.
         /// </returns>
-        public static bool TryNormalizeYoutubeUrl(string url, out string normalizedUrl)
+        public static bool TryNormalizeYoutubeUrl(string url, out string normalizedUrl,out string videoID)
         {
-            url = url.Trim();
-
-            url = url.Replace("youtu.be/", "youtube.com/watch?v=");
-            url = url.Replace("www.youtube", "youtube");
-            url = url.Replace("youtube.com/embed/", "youtube.com/watch?v=");
-
-            if (url.Contains("/v/"))
+            string id = "";
+            if (TryParseVideoId(url, out id))
             {
-                url = "http://youtube.com" + new Uri(url).AbsolutePath.Replace("/v/", "/watch?v=");
+                videoID = id;
+                normalizedUrl = String.Format("https://www.youtube.com/embed/{0}?disable_polymer=true&hl=en", videoID);
+                return true;
             }
-
-            url = url.Replace("/watch#", "/watch?");
-
-            IDictionary<string, string> query = HttpHelper.ParseQueryString(url);
-
-            string v;
-
-            if (!query.TryGetValue("v", out v))
+            else
             {
                 normalizedUrl = null;
+                videoID = null;
                 return false;
             }
-
-            normalizedUrl = "http://youtube.com/watch?v=" + v;
-
-            return true;
         }
 
-        private static IEnumerable<ExtractionInfo> ExtractDownloadUrls(JObject json)
+        /// <summary>
+        /// Tries to parse video ID from a YouTube video URL.
+        /// </summary>
+        public static bool TryParseVideoId(string videoUrl, out string videoId)
         {
-            string[] splitByUrls = GetStreamMap(json).Split(',');
-            string[] adaptiveFmtSplitByUrls = GetAdaptiveStreamMap(json).Split(',');
+            videoId = default(string);
+
+            if (String.IsNullOrEmpty(videoUrl))
+                return false;
+
+            // https://www.youtube.com/watch?v=yIVRs6YSbOM
+            var regularMatch =
+                Regex.Match(videoUrl, @"youtube\..+?/watch.*?v=(.*?)(?:&|/|$)").Groups[1].Value;
+            if (!string.IsNullOrEmpty(regularMatch) && ValidateVideoId(regularMatch))
+            {
+                videoId = regularMatch;
+                return true;
+            }
+
+            // https://youtu.be/yIVRs6YSbOM
+            var shortMatch =
+                Regex.Match(videoUrl, @"youtu\.be/(.*?)(?:\?|&|/|$)").Groups[1].Value;
+            if (!string.IsNullOrEmpty(shortMatch) && ValidateVideoId(shortMatch))
+            {
+                videoId = shortMatch;
+                return true;
+            }
+
+            // https://www.youtube.com/embed/yIVRs6YSbOM
+            var embedMatch =
+                Regex.Match(videoUrl, @"youtube\..+?/embed/(.*?)(?:\?|&|/|$)").Groups[1].Value;
+            if (!string.IsNullOrEmpty(embedMatch) && ValidateVideoId(embedMatch))
+            {
+                videoId = embedMatch;
+                return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Verifies that the given string is syntactically a valid YouTube video ID.
+        /// </summary>
+        public static bool ValidateVideoId(string videoId)
+        {
+            if (String.IsNullOrEmpty(videoId))
+                return false;
+
+            if (videoId.Length != 11)
+                return false;
+
+            return !Regex.IsMatch(videoId, @"[^0-9a-zA-Z_\-]");
+        }
+
+        /// <summary>
+        /// Parses video ID from a YouTube video URL.
+        /// </summary>
+        public static string ParseVideoId(string videoUrl)
+        {
+            string result = "";
+            if (TryParseVideoId(videoUrl, out result))
+            {
+                return result;
+            }
+            else
+            {
+                throw new FormatException($"Could not parse video ID from given string [{videoUrl}].");
+            }
+        }
+
+        private static IEnumerable<ExtractionInfo> ExtractDownloadUrls(Dictionary<string,string> values)
+        {
+            string[] splitByUrls = GetStreamMap(values).Split(',');
+            string[] adaptiveFmtSplitByUrls = GetAdaptiveStreamMap(values).Split(',');
             splitByUrls = splitByUrls.Concat(adaptiveFmtSplitByUrls).ToArray();
 
             foreach (string s in splitByUrls)
@@ -218,14 +311,14 @@ namespace YoutubeExtractor
             }
         }
 
-        private static string GetAdaptiveStreamMap(JObject json)
+        private static string GetAdaptiveStreamMap(Dictionary<string, string> values)
         {
-            JToken streamMap = json["args"]["adaptive_fmts"];
+            JToken streamMap = values["adaptive_fmts"];
 
             // bugfix: adaptive_fmts is missing in some videos, use url_encoded_fmt_stream_map instead
             if (streamMap == null)
             {
-              streamMap = json["args"]["url_encoded_fmt_stream_map"];
+                streamMap = values["url_encoded_fmt_stream_map"];
             }
 
             return streamMap.ToString();
@@ -245,9 +338,9 @@ namespace YoutubeExtractor
             return m.Result("$1");
         }
 
-        private static string GetStreamMap(JObject json)
+        private static string GetStreamMap(Dictionary<string,string> values)
         {
-            JToken streamMap = json["args"]["url_encoded_fmt_stream_map"];
+            JToken streamMap = values["url_encoded_fmt_stream_map"];
 
             string streamMapString = streamMap == null ? null : streamMap.ToString();
 
@@ -317,13 +410,11 @@ namespace YoutubeExtractor
             {
                 throw new VideoNotAvailableException();
             }
-
-            var dataRegex = new Regex(@"ytplayer\.config\s*=\s*(\{.+?\});", RegexOptions.Multiline);
-
-            string extractedJson = dataRegex.Match(pageSource).Result("$1");
-
+            var extractedJson = pageSource.SubstringAfter("yt.setConfig({'PLAYER_CONFIG': ").SubstringUntil(",'");
             return JObject.Parse(extractedJson);
         }
+
+
 
         private static void ThrowYoutubeParseException(Exception innerException, string videoUrl)
         {

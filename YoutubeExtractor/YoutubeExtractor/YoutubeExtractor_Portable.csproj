@@ -61,6 +61,7 @@
     <Compile Include="AudioType.cs" />
     <Compile Include="Decipherer.cs" />
     <Compile Include="DownloadUrlResolver.cs" />
+    <Compile Include="Extensions.cs" />
     <Compile Include="HttpHelper.cs" />
     <Compile Include="VideoInfo.cs" />
     <Compile Include="VideoNotAvailableException.cs" />

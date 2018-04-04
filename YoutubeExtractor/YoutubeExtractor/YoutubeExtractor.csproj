@@ -56,6 +56,7 @@
     <Compile Include="Decipherer.cs" />
     <Compile Include="Downloader.cs" />
     <Compile Include="DownloadUrlResolver.cs" />
+    <Compile Include="Extensions.cs" />
     <Compile Include="FlvFile.cs" />
     <Compile Include="HttpHelper.cs" />
     <Compile Include="IAudioExtractor.cs" />
