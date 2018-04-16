@@ -19,8 +19,8 @@ namespace YoutubeExtractor.Tests
             string url = "http://youtube.com/watch?v=12345";            
             
             string normalizedUrl = String.Empty;
-
-            Assert.IsTrue(DownloadUrlResolver.TryNormalizeYoutubeUrl(url, out normalizedUrl));
+            string youtubeID = String.Empty;
+            Assert.IsTrue(DownloadUrlResolver.TryNormalizeYoutubeUrl(url, out normalizedUrl,out youtubeID));
             Assert.AreEqual(url, normalizedUrl);
         }
         
@@ -30,7 +30,8 @@ namespace YoutubeExtractor.Tests
             string url = "http://youtu.be/12345";
             
             string normalizedUrl = String.Empty;
-            Assert.IsTrue(DownloadUrlResolver.TryNormalizeYoutubeUrl(url, out normalizedUrl));
+            string youtubeID = String.Empty;
+            Assert.IsTrue(DownloadUrlResolver.TryNormalizeYoutubeUrl(url, out normalizedUrl, out youtubeID));
             Assert.AreEqual("http://youtube.com/watch?v=12345", normalizedUrl);
         }
         
@@ -40,7 +41,8 @@ namespace YoutubeExtractor.Tests
             string url = "http://m.youtube.com/?v=12345";
             
             string normalizedUrl = String.Empty;
-            Assert.IsTrue(DownloadUrlResolver.TryNormalizeYoutubeUrl(url, out normalizedUrl));
+            string youtubeID = String.Empty;
+            Assert.IsTrue(DownloadUrlResolver.TryNormalizeYoutubeUrl(url, out normalizedUrl, out youtubeID));
 
             Assert.AreEqual("http://youtube.com/watch?v=12345", normalizedUrl);
         }
@@ -51,7 +53,8 @@ namespace YoutubeExtractor.Tests
             string url = "http://notAYouTubeUrl.com";
            
             string normalizedUrl = String.Empty;
-            Assert.IsFalse(DownloadUrlResolver.TryNormalizeYoutubeUrl(url, out normalizedUrl));
+            string youtubeID = String.Empty;
+            Assert.IsFalse(DownloadUrlResolver.TryNormalizeYoutubeUrl(url, out normalizedUrl, out youtubeID));
             Assert.IsNull(normalizedUrl);
         }
     }

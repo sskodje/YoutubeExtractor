@@ -80,7 +80,7 @@ namespace YoutubeExtractor
             if (videoUrl == null)
                 throw new ArgumentNullException("videoUrl");
             string videoID;
-            bool isYoutubeUrl = TryNormalizeYoutubeUrl(videoUrl, out videoUrl,out videoID);
+            bool isYoutubeUrl = TryNormalizeYoutubeUrl(videoUrl, out videoUrl, out videoID);
 
             if (!isYoutubeUrl)
             {
@@ -94,9 +94,9 @@ namespace YoutubeExtractor
                 string videoTitle = GetVideoTitle(json);
                 string sts = json["sts"].Value<string>();
 
-                Dictionary<string,string> videoInfo = GetVideoInfo(videoID, sts);
+                Dictionary<string, string> videoInfo = GetVideoInfo(videoID, sts);
 
-                IEnumerable <ExtractionInfo> downloadUrls = ExtractDownloadUrls(videoInfo);
+                IEnumerable<ExtractionInfo> downloadUrls = ExtractDownloadUrls(videoInfo);
 
                 IEnumerable<VideoInfo> infos = GetVideoInfos(downloadUrls, videoTitle).ToList();
 
@@ -141,12 +141,37 @@ namespace YoutubeExtractor
 
 #endif
 
+        private static string GetVideoInfoRawAsync(string videoId, string el = "", string sts = "")
+        {
+            var url = $"https://www.youtube.com/get_video_info?video_id={videoId}&el={el}&sts={sts}&hl=en";
+            string extractedJson = HttpHelper.DownloadString(url);
+            return extractedJson;
+        }
 
         private static Dictionary<string, string> GetVideoInfo(string videoID, string sts)
         {
-            string url = String.Format("https://www.youtube.com/get_video_info?video_id={0}&el={1}&sts={2}&hl=en", videoID, "embedded", sts);
-            string extractedJson = HttpHelper.DownloadString(url);
-            return SplitQuery(extractedJson);
+            //string url = String.Format("https://www.youtube.com/get_video_info?video_id={0}&el={1}&sts={2}&hl=en", videoID, "embedded", sts);
+            //string extractedJson = HttpHelper.DownloadString(url);
+            string extractedJson = GetVideoInfoRawAsync(videoID, "embedded", sts);
+            var videoInfo = SplitQuery(extractedJson);
+            // If can't be embedded - try another value of el
+            if (videoInfo.ContainsKey("errorcode"))
+            {
+                var errorReason = videoInfo["reason"];
+                if (errorReason.Contains("&feature=player_embedded"))
+                {
+                    extractedJson = GetVideoInfoRawAsync(videoID, "detailpage", sts);
+                    videoInfo = SplitQuery(extractedJson);
+                }
+            }
+            // Check error
+            if (videoInfo.ContainsKey("errorcode"))
+            {
+                var errorReason = videoInfo["reason"];
+
+                throw new VideoNotAvailableException(errorReason);
+            }
+            return videoInfo;
         }
 
         private static Dictionary<string, string> SplitQuery(string query)
@@ -183,7 +208,7 @@ namespace YoutubeExtractor
         /// <returns>
         /// <c>true</c>, if the normalization was successful; <c>false</c>, if the URL is invalid.
         /// </returns>
-        public static bool TryNormalizeYoutubeUrl(string url, out string normalizedUrl,out string videoID)
+        public static bool TryNormalizeYoutubeUrl(string url, out string normalizedUrl, out string videoID)
         {
             string id = "";
             if (TryParseVideoId(url, out id))
@@ -270,7 +295,7 @@ namespace YoutubeExtractor
             }
         }
 
-        private static IEnumerable<ExtractionInfo> ExtractDownloadUrls(Dictionary<string,string> values)
+        private static IEnumerable<ExtractionInfo> ExtractDownloadUrls(Dictionary<string, string> values)
         {
             string[] splitByUrls = GetStreamMap(values).Split(',');
             string[] adaptiveFmtSplitByUrls = GetAdaptiveStreamMap(values).Split(',');
@@ -338,7 +363,7 @@ namespace YoutubeExtractor
             return m.Result("$1");
         }
 
-        private static string GetStreamMap(Dictionary<string,string> values)
+        private static string GetStreamMap(Dictionary<string, string> values)
         {
             JToken streamMap = values["url_encoded_fmt_stream_map"];
 
