@@ -338,7 +338,12 @@ namespace YoutubeExtractor
 
         private static string GetAdaptiveStreamMap(Dictionary<string, string> values)
         {
-            JToken streamMap = values["adaptive_fmts"];
+            JToken streamMap = null;
+
+            if (values.ContainsKey("adaptive_fmts"))
+            {
+                streamMap = values["adaptive_fmts"];
+            };
 
             // bugfix: adaptive_fmts is missing in some videos, use url_encoded_fmt_stream_map instead
             if (streamMap == null)
