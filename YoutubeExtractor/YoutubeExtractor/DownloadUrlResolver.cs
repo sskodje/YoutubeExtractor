@@ -158,11 +158,9 @@ namespace YoutubeExtractor
             if (videoInfo.ContainsKey("errorcode"))
             {
                 var errorReason = videoInfo["reason"];
-                if (errorReason.Contains("&feature=player_embedded"))
-                {
-                    extractedJson = GetVideoInfoRawAsync(videoID, "detailpage", sts);
-                    videoInfo = SplitQuery(extractedJson);
-                }
+                //Try again without embedded
+                extractedJson = GetVideoInfoRawAsync(videoID, "detailpage", sts);
+                videoInfo = SplitQuery(extractedJson);
             }
             // Check error
             if (videoInfo.ContainsKey("errorcode"))
